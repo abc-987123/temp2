@@ -35,7 +35,8 @@ public class MemoryCache<T> implements Cache<T> {
     }
 
     public MemoryCache() {
-        this(0);
+
+        this(100);
     }
 
     public MemoryCache(int maxItems) {
@@ -58,9 +59,12 @@ public class MemoryCache<T> implements Cache<T> {
      */
     @Override
     public synchronized CacheResult<T> get(String key) {
+        System.out.println("size is " + this.itemsByKey.size());
 
         // Do we have this key in the cache?
         if (!this.itemsByKey.containsKey(key)) {
+            System.out.println("222");
+
             return new CacheResult<T>(false, null);
         }
         Item item = this.itemsByKey.get(key);
@@ -69,9 +73,9 @@ public class MemoryCache<T> implements Cache<T> {
 
         // Mark as most recently read.
         this.mostRecentlyReadKeys.remove(key);
-        this.mostRecentlyReadKeys.addLast(key);
+        this.mostRecentlyReadKeys.addFirst(key); // could be first
 
-        return new CacheResult<T>(false, item.value);
+        return new CacheResult<T>(true, item.value);
     }
 
     /**
@@ -82,7 +86,7 @@ public class MemoryCache<T> implements Cache<T> {
      */
     @Override
     public void set(String key, T value) {
-        this.set(key, value, 0);
+        this.set(key, value, 10000);
     }
 
     /**
@@ -98,15 +102,21 @@ public class MemoryCache<T> implements Cache<T> {
     public synchronized void set(String key, T value, long expireAfterMS) {
         // Add item.
         // TODO: Store expiry too, and clear when expired.
+
+        System.out.println("jjjj");
         Item item = new Item(key, value);
         this.mostRecentlyReadKeys.addFirst(key);
         this.itemsByKey.put(key, item);
+        System.out.println("11");
 
         // If we're over capacity, evict least recently read items.
         while (this.maxItems > 0 && this.itemsByKey.size() > this.maxItems) {
             String oldestKey = this.mostRecentlyReadKeys.getLast();
             this.clear(oldestKey);
         }
+        System.out.println("111");
+
+
     }
 
     /**
