@@ -135,8 +135,30 @@ class MemoryCacheTests {
      * TODO: Test expiry.
      */
     @Test
-    @Disabled
-    void expiry() {
-        // TODO: Implement!
+    void expiry () throws InterruptedException {
+
+        MemoryCache cache = new MemoryCache(100);
+
+        // Initially, the cache should contain nothing.
+
+        assertNotInCache(cache, "a");
+        assertNotInCache(cache, "b");
+
+        // We should be able to add items to the cache, then retrieve them.
+
+        String a = "A";
+        String b = "B";
+
+        cache.set("a", a, 5 * 1000);
+        cache.set("b", b, 5 * 1000);
+
+        assertCachedEquals(cache, "a", a);
+        assertCachedEquals(cache, "b", b);
+
+        Thread.sleep(7000);
+
+        assertNotInCache(cache, "a");
+        assertNotInCache(cache, "b");
+
     }
 }

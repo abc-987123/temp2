@@ -10,7 +10,10 @@ public class MemoryCache<T> implements Cache<T> {
     // A value of 0 means unbounded.
     // When adding a new item would put this cache over capacity,
     // the least recently accessed item(s) will be purged to make room.
-    private final int maxItems;
+    private final int maxItems = 100;
+
+    private final long DelayMS = 30*1000;
+
 
     // To purge the least recently accessed item(s) when over capacity,
     // we implement a standard LRU cache using a doubly linked list + map.
@@ -27,15 +30,26 @@ public class MemoryCache<T> implements Cache<T> {
     private class Item {
         final String key;
         final T value;
+         long expireAfterMS = 0;
+
+        long currentTime = 0;
 
         private Item(String key, T value) {
             this.key = key;
             this.value = value;
         }
+        private Item(String key, T value, long expireMS) {
+            this.key = key;
+            this.value = value;
+            this.expireAfterMS = expireMS;
+            //This method returns the time in millis
+             this.currentTime = System.currentTimeMillis();
+        }
     }
 
     public MemoryCache() {
-        this(0);
+
+        this(maxItems);
     }
 
     public MemoryCache(int maxItems) {
@@ -61,17 +75,26 @@ public class MemoryCache<T> implements Cache<T> {
 
         // Do we have this key in the cache?
         if (!this.itemsByKey.containsKey(key)) {
+
             return new CacheResult<T>(false, null);
         }
         Item item = this.itemsByKey.get(key);
 
+
         // TODO: Check for expiry, and clear if expired.
+        if(System.currentTimeMillis() > item.currentTime + item.expireAfterMS)
+        {
+            this.clear(key);
+            //this.mostRecentlyReadKeys.remove(key);
+            return new CacheResult<T>(false, null);
+
+        }
 
         // Mark as most recently read.
         this.mostRecentlyReadKeys.remove(key);
-        this.mostRecentlyReadKeys.addLast(key);
+        this.mostRecentlyReadKeys.addFirst(key); // could be first
 
-        return new CacheResult<T>(false, item.value);
+        return new CacheResult<T>(true, item.value);
     }
 
     /**
@@ -82,7 +105,7 @@ public class MemoryCache<T> implements Cache<T> {
      */
     @Override
     public void set(String key, T value) {
-        this.set(key, value, 0);
+        this.set(key, value, 10000);
     }
 
     /**
@@ -98,7 +121,8 @@ public class MemoryCache<T> implements Cache<T> {
     public synchronized void set(String key, T value, long expireAfterMS) {
         // Add item.
         // TODO: Store expiry too, and clear when expired.
-        Item item = new Item(key, value);
+
+        Item item = new Item(key, value, expireAfterMS);
         this.mostRecentlyReadKeys.addFirst(key);
         this.itemsByKey.put(key, item);
 
@@ -107,6 +131,7 @@ public class MemoryCache<T> implements Cache<T> {
             String oldestKey = this.mostRecentlyReadKeys.getLast();
             this.clear(oldestKey);
         }
+
     }
 
     /**
@@ -125,5 +150,25 @@ public class MemoryCache<T> implements Cache<T> {
         this.itemsByKey.remove(key);
 
         return true;
+    }
+
+    public void runScheduler()
+    {
+        Scheduler sch = new DefaultScheduler();
+
+        for(Item item: itemsByKey.Values()) {
+            Runnable func = new Runnable() {
+
+                @Override
+                public void run() {
+                    if (System.currentTimeMillis() > item.currentTime + item.expireAfterMS) {
+                        this.clear(key);
+
+                    }
+                }
+            }
+
+            sch.RunOnceAfter(func, DelayMS);
+        }
     }
 }
